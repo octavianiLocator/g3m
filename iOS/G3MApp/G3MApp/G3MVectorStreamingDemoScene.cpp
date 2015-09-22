@@ -19,23 +19,29 @@
 #include <G3MiOSSDK/JSONObject.hpp>
 #include <G3MiOSSDK/JSONString.hpp>
 #include <G3MiOSSDK/JSONNumber.hpp>
+#include <G3MiOSSDK/StackLayoutImageBuilder.hpp>
+#include <G3MiOSSDK/CircleImageBuilder.hpp>
+#include <G3MiOSSDK/LabelImageBuilder.hpp>
 
 #include "G3MDemoModel.hpp"
+#include <sstream>
 
 
 class G3MVectorStreamingDemoScene_Symbolizer : public VectorStreamingRenderer::VectorSetSymbolizer {
 public:
-  Mark* createMark(const GEO2DPointGeometry* geometry) const {
+  Mark* createFeatureMark(const GEO2DPointGeometry* geometry) const {
     const GEOFeature* feature = geometry->getFeature();
 
     const JSONObject* properties = feature->getProperties();
 
-    const std::string label = properties->getAsString("name")->value();
+    const std::string label = properties->getAsString("name", "<bar>");
     const Geodetic3D  position( geometry->getPosition(), 0);
 
-    double maxPopulation = 22315474;
-    double population = properties->getAsNumber("population")->value();
-    float labelFontSize = (float) (14.0 * (population / maxPopulation) + 16.0) ;
+//    double maxPopulation = 22315474;
+//    double population = properties->getAsNumber("population")->value();
+//    float labelFontSize = (float) (14.0 * (population / maxPopulation) + 16.0) ;
+
+     float labelFontSize = 18.0f;
 
     Mark* mark = new Mark(label,
                           position,
@@ -44,10 +50,66 @@ public:
                           labelFontSize
                           // Color::newFromRGBA(1, 1, 0, 1)
                           );
-    mark->setZoomInAppears(true);
+
+//    int pointSize = 12;
+//
+//    Mark* mark = new Mark(new CircleImageBuilder(Color::white(),
+//                                                 pointSize),
+//                          position,
+//                          ABSOLUTE,
+//                          0 // minDistanceToCamera
+//                          );
+
     return mark;
   }
-  
+
+  Mark* createClusterMark(const VectorStreamingRenderer::Cluster* cluster,
+                          long long featuresCount) const {
+    const Geodetic3D  position(cluster->getPosition()->_latitude,
+                               cluster->getPosition()->_longitude,
+                               0);
+
+    std::stringstream labelStream;
+//    labelStream << "(";
+    labelStream << cluster->getSize();
+//    labelStream << ")";
+
+    std::string label;
+    labelStream >> label;
+
+    const double clusterPercent = (double) cluster->getSize() / featuresCount;
+
+    const IMathUtils* mu = IMathUtils::instance();
+
+     float labelFontSize = (float) ((14.0 * clusterPercent) + 16.0) ;
+//    float labelFontSize = 18.0f;
+
+    double area = (15000.0 * clusterPercent);
+//    int pointSize = mu->max(12, mu->round((float) mu->sqrt(area)));
+    int pointSize = 12 + mu->round((float) mu->sqrt(area));
+
+    Mark* mark = new Mark(new StackLayoutImageBuilder(new CircleImageBuilder(Color::white(),
+                                                                             pointSize),
+                                                      new LabelImageBuilder(label,
+                                                                            GFont::sansSerif(labelFontSize, true),
+                                                                            2.0f,                 // margin
+                                                                            Color::black(),       // color
+                                                                            Color::transparent(), // shadowColor
+                                                                            5.0f,                 // shadowBlur
+                                                                            0.0f,                 // shadowOffsetX
+                                                                            0.0f,                 // shadowOffsetY
+                                                                            Color::white(),       // backgroundColor
+                                                                            4.0f                  // cornerRadius
+                                                                            )
+                                                      ),
+                          position,
+                          ABSOLUTE,
+                          0 // minDistanceToCamera
+                          );
+
+    return mark;
+  }
+
 };
 
 
@@ -65,8 +127,12 @@ void G3MVectorStreamingDemoScene::rawActivate(const G3MContext* context) {
 
   VectorStreamingRenderer* renderer = model->getVectorStreamingRenderer();
   renderer->addVectorSet(URL("http://192.168.1.12:8080/server-mapboo/public/VectorialStreaming/"),
-                         "GEONames-PopulatedPlaces_LOD",
-                         "name|population|featureClass|featureCode",
+                         // "GEONames-PopulatedPlaces_LOD",
+                         // "name|population|featureClass|featureCode",
+                         "SpanishBars_LOD",
+                         "name",
+                         //"Tornados_LOD",
+                         //"mag",
                          new G3MVectorStreamingDemoScene_Symbolizer(),
                          true, // deleteSymbolizer
                          //DownloadPriority::LOWER,
@@ -74,7 +140,7 @@ void G3MVectorStreamingDemoScene::rawActivate(const G3MContext* context) {
                          TimeInterval::zero(),
                          true, // readExpired
                          true, // verbose
-                         true // haltOnError
+                         true  // haltOnError
                          );
 
 
